@@ -1,5 +1,8 @@
 # starboard-runtime
 
+[![Build](https://github.com/davestephens/starboard-runtime/actions/workflows/rootfs.yml/badge.svg)](https://github.com/davestephens/starboard-runtime/actions/workflows/rootfs.yml)
+[![Latest release](https://img.shields.io/github/v/release/davestephens/starboard-runtime?label=release)](https://github.com/davestephens/starboard-runtime/releases/latest)
+
 Runtime distribution for [Starboard](https://github.com/davestephens/starboard) — an Android app that runs PortMaster Linux games on ARM64 handhelds via proot.
 
 This repo hosts the Debian ARM64 rootfs that Starboard downloads and extracts on first launch. The rootfs provides the glibc + SDL2 + Mesa environment that PortMaster ports expect.
@@ -12,7 +15,7 @@ The latest rootfs is published as a GitHub Release asset:
 https://github.com/davestephens/starboard-runtime/releases/latest/download/starboard-rootfs.tar.gz
 ```
 
-The Starboard app downloads this automatically on first launch (~130 MB compressed, ~400 MB extracted).
+The Starboard app downloads this automatically on first launch (~200 MB compressed, ~400 MB extracted).
 
 ## Contents
 
