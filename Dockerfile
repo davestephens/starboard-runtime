@@ -142,6 +142,37 @@ RUN echo 'deb [arch=arm64] http://deb.debian.org/debian trixie main' \
 #   /opt/sb          — nativeLibDir (libSDL2_starboard.so, libproot_loader.so, etc.)
 RUN mkdir -p /home/user/port /roms/ports /tmp/sb /opt/sb
 
+# Mesa-virgl client payload for the experimental hardware-GPU mode.
+# When the user toggles "Run on GPU" in the launcher, this directory is
+# preferred over the OSMesa software path via LD_LIBRARY_PATH ordering
+# (see launcher.sh template in app/src/main/cpp/game_bridge.cpp).
+#   /opt/sb-virgl/dri  — Mesa virtio_gpu DRI driver + swrast bootstrap drivers
+#   /opt/sb-virgl/lib  — libGL/libEGL/libGLES* + their transitive deps (libdrm, llvm)
+#   /opt/sb-virgl/bin  — eglinfo / es2_info diagnostics
+# Source = stock Debian Mesa 22.3.6, same version used to build virglrenderer_sb,
+# so wire-protocol matches across the vtest socket.
+RUN mkdir -p /opt/sb-virgl/dri /opt/sb-virgl/lib /opt/sb-virgl/bin && \
+    cp -L /usr/lib/aarch64-linux-gnu/dri/virtio_gpu_dri.so /opt/sb-virgl/dri/ && \
+    cp -L /usr/lib/aarch64-linux-gnu/dri/swrast_dri.so /opt/sb-virgl/dri/ && \
+    cp -L /usr/lib/aarch64-linux-gnu/dri/kms_swrast_dri.so /opt/sb-virgl/dri/ && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libllvm15 libdrm-amdgpu1 libdrm-radeon1 libdrm-nouveau2 mesa-utils-bin \
+    && for lib in libGL.so.1 libGLX.so.0 libGLdispatch.so.0 libGLX_mesa.so.0 \
+                  libEGL.so.1 libEGL_mesa.so.0 libgbm.so.1 libglapi.so.0 \
+                  libdrm.so.2 libdrm_amdgpu.so.1 libdrm_radeon.so.1 libdrm_nouveau.so.2 \
+                  libLLVM-15.so.1 libzstd.so.1 libelf.so.1 libsensors.so.5 libxml2.so.2 \
+                  libGLESv2.so.2 libGLESv1_CM.so.1; do \
+        src=$(find /usr/lib/aarch64-linux-gnu -maxdepth 2 -name "$lib" 2>/dev/null | head -1); \
+        if [ -n "$src" ]; then cp -L "$src" /opt/sb-virgl/lib/; \
+        else echo "WARN: $lib not found" >&2; fi; \
+    done && \
+    cp -L /usr/bin/es2_info.aarch64-linux-gnu /opt/sb-virgl/bin/es2_info && \
+    cp -L /usr/bin/eglinfo.aarch64-linux-gnu /opt/sb-virgl/bin/eglinfo && \
+    chmod +x /opt/sb-virgl/bin/* && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    du -sh /opt/sb-virgl
+
 # PortMaster expects this file to exist so port scripts can source it for GL settings.
 RUN mkdir -p /opt/system/Tools/PortMaster && \
     printf 'export LIBGL_ALWAYS_SOFTWARE=1\nexport GALLIUM_DRIVER=llvmpipe\n' \
