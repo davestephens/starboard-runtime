@@ -72,6 +72,7 @@ RUN apt-get update && \
         libegl-mesa0 \
         libgl1-mesa-dri \
         libgles2 \
+        libglu1-mesa \
         libosmesa6 \
         squashfs-tools \
         7zip \
