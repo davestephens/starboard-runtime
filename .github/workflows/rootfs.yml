@@ -37,6 +37,35 @@ jobs:
       - name: Build rootfs
         run: bash build-rootfs.sh
 
+      - name: Verify compat symlinks and PortMaster control dir
+        run: |
+          set -e
+          mkdir -p /tmp/rootfs-verify
+          tar xzf rootfs.tar.gz -C /tmp/rootfs-verify --wildcards \
+              'usr/lib/aarch64-linux-gnu/libSDL2.so' \
+              'usr/lib/aarch64-linux-gnu/libGL.so.1' \
+              'usr/lib/aarch64-linux-gnu/libOpenGL.so.0' \
+              'usr/lib/aarch64-linux-gnu/libGLESv2.so' \
+              'opt/system/Tools/PortMaster'
+          cd /tmp/rootfs-verify
+
+          check_symlink() {
+            if [ "$(readlink "$1")" != "$2" ]; then
+              echo "FAIL: $1 -> $(readlink "$1") (expected -> $2)" >&2
+              exit 1
+            fi
+            echo "ok: $1 -> $2"
+          }
+          check_symlink usr/lib/aarch64-linux-gnu/libSDL2.so      libSDL2-2.0.so.0
+          check_symlink usr/lib/aarch64-linux-gnu/libGL.so.1      libOSMesa.so.8
+          check_symlink usr/lib/aarch64-linux-gnu/libOpenGL.so.0  libOSMesa.so.8
+          check_symlink usr/lib/aarch64-linux-gnu/libGLESv2.so    libGLESv2.so.2
+          check_symlink opt/system/Tools/PortMaster/xdelta3       /usr/bin/xdelta3
+          check_symlink opt/system/Tools/PortMaster/7zzs.aarch64  /usr/bin/7zz
+          [ -d opt/system/Tools/PortMaster/libs ]  || { echo "FAIL: missing libs/" >&2; exit 1; }
+          [ -d opt/system/Tools/PortMaster/utils ] || { echo "FAIL: missing utils/" >&2; exit 1; }
+          echo "all PortMaster compat symlinks/dirs present"
+
       - name: Rename artifact
         run: mv rootfs.tar.gz starboard-rootfs.tar.gz
 

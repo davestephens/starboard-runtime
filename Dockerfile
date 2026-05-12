@@ -134,6 +134,21 @@ RUN echo 'deb [arch=arm64] http://deb.debian.org/debian trixie main' \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
     rm /etc/apt/sources.list.d/trixie.list /etc/apt/preferences.d/trixie
 
+# Compat symlinks for ports that link against unversioned / wrong-soname libs.
+# Done AFTER all apt operations because apt-get install runs ldconfig, which
+# would restore the canonical libGL.so.1 → libGL.so.1.7.0 (GLVND) symlink and
+# undo our OSMesa redirect.
+#   libSDL2.so      — some ports link against the bare development name.
+#   libGL.so.1      — replace GLVND dispatch with OSMesa (headless proot has no
+#                     EGL/GLX context → GLVND silently drops GL calls → black screen).
+#   libOpenGL.so.0  — same OSMesa redirect for the modern OpenGL split package.
+#   libGLESv2.so    — unversioned soname for ports that link against it directly.
+#                     (libGLESv2.so.2 is overwritten by libGLESv2_wrap.so on-device.)
+RUN ln -sf libSDL2-2.0.so.0 /usr/lib/aarch64-linux-gnu/libSDL2.so && \
+    ln -sf libOSMesa.so.8   /usr/lib/aarch64-linux-gnu/libGL.so.1 && \
+    ln -sf libOSMesa.so.8   /usr/lib/aarch64-linux-gnu/libOpenGL.so.0 && \
+    ln -sf libGLESv2.so.2   /usr/lib/aarch64-linux-gnu/libGLESv2.so
+
 # Create directories that proot bind-mounts into.
 # These must exist as directories in the guest rootfs before proot starts.
 #   /home/user/port  — launcher script path (bind target for portDir)
@@ -174,11 +189,20 @@ RUN mkdir -p /opt/sb-virgl/dri /opt/sb-virgl/lib /opt/sb-virgl/bin && \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
     du -sh /opt/sb-virgl
 
-# PortMaster expects this file to exist so port scripts can source it for GL settings.
-RUN mkdir -p /opt/system/Tools/PortMaster && \
+# PortMaster control directory skeleton.
+# - libgl_default.txt is sourced by port scripts for GL settings.
+# - libs/ is where harbourmaster (shim) downloads runtime squashfs files.
+# - utils/ is sourced by ports that need first-run installation/patching.
+# - xdelta3 symlink: ports use $controlfolder/xdelta3 to patch game data files.
+# - 7zzs.aarch64 symlink: ports use it to extract bundled archives.
+# The control.txt / bind_directories.sh / harbourmaster / patcher.txt / device_info.txt
+# shim files are written by the app at first-launch (byte-array embedded in
+# libgame_bridge.so), so they're NOT created here.
+RUN mkdir -p /opt/system/Tools/PortMaster/libs /opt/system/Tools/PortMaster/utils && \
     printf 'export LIBGL_ALWAYS_SOFTWARE=1\nexport GALLIUM_DRIVER=llvmpipe\n' \
         > /opt/system/Tools/PortMaster/libgl_default.txt && \
-    ln -sf /usr/bin/7zz /opt/system/Tools/PortMaster/7zzs.aarch64
+    ln -sf /usr/bin/7zz     /opt/system/Tools/PortMaster/7zzs.aarch64 && \
+    ln -sf /usr/bin/xdelta3 /opt/system/Tools/PortMaster/xdelta3
 
 # Love2D 11.5 runtime — pre-built binary + libs copied from scripts/runtimes/love_11.5.
 #   $controlfolder resolves to /opt/system/Tools/PortMaster on Starboard (matched by
